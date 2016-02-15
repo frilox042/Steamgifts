@@ -172,21 +172,3 @@ class SgRequests(object):
         self.doEntry(wishlist)
         pinned = self.findAll50copies()
         self.doEntry(pinned)
-
-    def generate(self):
-        def f(soup):
-            page_heading = soup.find('div', {'class': 'page__heading'})
-            soup_wishlist = page_heading.next_sibling.next_sibling
-            div = soup_wishlist.find_all(
-                'div', {'class': 'giveaway__row-outer-wrap'})
-            for i in div:
-                yield (getLink(i), getCode(i), getPrice(i))
-        yield from self.browser_pages_with_generator('/giveaways/search?', f)
-
-
-    def browser_pages_with_generator(self, path_url, func, page=1):
-        r = self.get(path_url + '&page=' + str(page))
-        soup = bs(r.text, 'html.parser')
-        yield from func(soup)
-        if self.page_has_next(soup):
-            yield from self.browser_pages_with_generator(path_url, func, page=(page + 1))
