@@ -104,7 +104,7 @@ class SgRequests(object):
                     logger.warning('Failed with status_code : ' + str(r.status_code))
             else:
                 logger.warning('Not enough points to enter : ' +
-                      giveaway_link, ' / cost : ' + giveaway_price)
+                      giveaway_link + ' / cost : ' + str(giveaway_price))
         else:
             logger.warning('Already Done for : ' + giveaway_code)
     def page_has_next(self, soup):
