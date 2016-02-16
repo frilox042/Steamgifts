@@ -28,7 +28,9 @@ python main.py
 To use this program properly, you should configure your Steamgifts account as following:
 
 Hide giveaways for games you already own? Yes
+
 Hide giveaways for DLC if you're missing the base game? Yes
+
 Hide giveaways above your level? Yes
 
 ##Todo
