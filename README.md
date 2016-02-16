@@ -12,12 +12,14 @@ A file named "sg_entry.db" should appear.
 Put your **Steamgifts cookie** in "cookie.txt".
 
 To find the cookie:
+
 1. Go on Steamgifts
 2. Press Ctrl-I
 3. Go on Security
 4. Click on "see Cookie" button
 5. Find cookie named "PHPSESSID"
 6. Copy-paste the content in the a file named "cookie.txt"
+
 ## Usage
 To run the program for Auto-join, run:
 ```
