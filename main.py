@@ -1,5 +1,9 @@
-import sg_requests
+from sg_requests import SgRequests
+from sg_requests import InvalidCookieException
 import logging
+import sys
+
+
 
 def setup():
     logger = logging.getLogger('sg_logger')
@@ -14,10 +18,18 @@ def setup():
     logger.addHandler(fh)
     logger.addHandler(ch)
 
+def handleCookieException():
+    print("Invalid cookie, check 'cookie.txt' file or see README.md")
+
 def main():
     setup()
-    sg = sg_requests.SgRequests()
-    sg.run()
+    try:
+        sg = SgRequests()
+        if '-sync' in sys.argv:
+            sg.sync()
+        sg.run()
+    except InvalidCookieException:
+        handleCookieException()
 
 if __name__ == '__main__':
     main()
