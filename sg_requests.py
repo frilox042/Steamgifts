@@ -2,12 +2,13 @@ import requests
 from bs4 import BeautifulSoup as bs
 import os
 import json
-import sqlite3
 import re
 import time
 import logging
 from sgdb import SgDb
 from functools import partial
+from notif import Notif
+from mailNotifier import send_mail
 
 
 logger = logging.getLogger('sg_logger.sg_requests')
@@ -33,12 +34,16 @@ class SgRequests(object):
     sqlite_db_name = 'sg_entry.db'
     timeout = (30.0, 30.0)  # (timeout, time to read)
     time_to_sleep_between_each_request = 0
+
     header_pages = {
-        'User-agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:44.0) Gecko/20100101 Firefox/44.0'
+        'User-agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:44.0)\
+         Gecko/20100101 Firefox/44.0'
     }
+
     header_entry_template = {
         'Host': 'www.steamgifts.com',
-        'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:44.0) Gecko/20100101 Firefox/44.0',
+        'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:44.0)\
+         Gecko/20100101 Firefox/44.0',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate',
@@ -62,6 +67,7 @@ class SgRequests(object):
             raise InvalidCookieException()
         self.points = self.__get_current_points()
         self.db = SgDb(self.sqlite_db_name)
+        self.notif = Notif()
 
     def __get_xsrf_token(self):
         r = self.get('')
@@ -75,19 +81,24 @@ class SgRequests(object):
         return int(soup.find('span', {'class': 'nav__points'}).text)
 
     def __getLink(self, soup):
-        return soup.find('a', {'class': 'giveaway__heading__name'}).attrs['href']
+        tmp = soup.find('a', {'class': 'giveaway__heading__name'})
+        return tmp.attrs['href']
 
     def __getCode(self, soup):
         link = self.__getLink(soup)
         return link.split('/')[2]
 
     def __getPrice(self, soup):
-        return int(soup.findAll('span', {'class': 'giveaway__heading__thin'})[-1].text[1:-2])
+        tmp = soup.findAll('span', {'class': 'giveaway__heading__thin'})
+        return int(tmp[-1].text[1:-2])
 
     def get(self, path_url):
         time.sleep(self.time_to_sleep_between_each_request)
         logger.info('getting page : "' + self.base_url + path_url + '"')
-        return requests.get(self.base_url + path_url, headers=self.header_pages, cookies=self.cookie, timeout=self.timeout)
+        return requests.get(self.base_url + path_url,
+                            headers=self.header_pages,
+                            cookies=self.cookie,
+                            timeout=self.timeout)
 
     def enter(self, giveaway_link, giveaway_code, giveaway_price):
         """ Send a request to enter to the giveaway
@@ -96,7 +107,8 @@ class SgRequests(object):
         If it is ok then do the request to enter
         If enter is ok then register the entry in database
         Check log to see what happen
-        :param giveaway_link: link for giveaway (exemple: '/giveaway/xxxxx/game')
+        :param giveaway_link: link for giveaway
+                (exemple: '/giveaway/xxxxx/game')
         :param giveaway_code: code of the giveaway
         :param giveaway_price: int value of giveaway
         """
@@ -108,7 +120,10 @@ class SgRequests(object):
                 header_entry = self.header_entry_template
                 header_entry['Referer'] = self.base_url + giveaway_link
                 r = requests.post(self.base_url + "/ajax.php",
-                                  headers=header_entry, cookies=self.cookie, data=payload, timeout=self.timeout)
+                                  headers=header_entry,
+                                  cookies=self.cookie,
+                                  data=payload,
+                                  timeout=self.timeout)
                 if r.status_code == 200:
                     json_tmp = json.loads(r.text)
                     if json_tmp['type'] == 'success':
@@ -157,19 +172,29 @@ class SgRequests(object):
         soup = bs(r.text, 'html.parser')
         yield from func(soup)
         if self.__page_has_next(soup):
-            yield from self.generateEntryByBrowsingPage(path_url, func, page=(page + 1))
+            yield from self.generateEntryByBrowsingPage(path_url,
+                                                        func,
+                                                        page=(page + 1))
 
     def generateWishlistEntry(self):
-        yield from self.generateEntryByBrowsingPage('/giveaways/search?type=wishlist', self.__generateEntry)
+        yield from self.generateEntryByBrowsingPage(
+                                            '/giveaways/search?type=wishlist',
+                                            self.__generateEntry)
 
     def generate50copiesEntry(self):
-        yield from self.generateEntryByBrowsingPage('/giveaways/search?q=SthNeverMatchHere', self.__generateEntry50copies)
+        yield from self.generateEntryByBrowsingPage(
+                                    '/giveaways/search?q=SthNeverMatchHere',
+                                    self.__generateEntry50copies)
 
     def generateAllEntry(self):
-        yield from self.generateEntryByBrowsingPage('/giveaways/search?', self.__generateEntry)
+        yield from self.generateEntryByBrowsingPage(
+                                    '/giveaways/search?',
+                                    self.__generateEntry)
 
     def generateEntryByName(self, name):
-        yield from self.generateEntryByBrowsingPage('/giveaways/search?q=' + name, self.__generateEntry)
+        yield from self.generateEntryByBrowsingPage(
+                                            '/giveaways/search?q=' + name,
+                                            self.__generateEntry)
 
 
     def pointGreaterThan(self, point):
@@ -182,8 +207,10 @@ class SgRequests(object):
             self.enter(*g)
 
     def run(self):
-        self.doEntryByGenerator(self.generateWishlistEntry(), partial(self.pointGreaterThan, point=0))
-        self.doEntryByGenerator(self.generate50copiesEntry(), partial(self.pointGreaterThan, point=0))
+        self.doEntryByGenerator(self.generateWishlistEntry(),
+                                partial(self.pointGreaterThan, point=0))
+        self.doEntryByGenerator(self.generate50copiesEntry(),
+                                partial(self.pointGreaterThan, point=0))
         self.doEntryByGenerator(self.generateAllEntry(),
                                 partial(self.pointGreaterThan, point=0))
 
@@ -203,3 +230,45 @@ class SgRequests(object):
         else:
             logger.warning(
                 'Failed to sync with status_code : ' + str(r.status_code))
+
+    def checkNotif(self):
+        r = self.get("")
+        soup = bs(r.text, 'html.parser')
+        won = 0
+        created = 0
+        message = 0
+        tmp = soup.find('a', {'title': 'Giveaways Won'})
+        tmp2 = tmp.find('div', {"class": "nav__notification"})
+        if tmp2 is not None:
+            won = int(tmp2.text)
+        tmp = soup.find('a', {'title': 'Giveaways Created'})
+        tmp2 = tmp.find('div', {"class": "nav__notification"})
+        if tmp2 is not None:
+            created = int(tmp2.text)
+        tmp = soup.find('a', {'title': 'Messages'})
+        tmp2 = tmp.find('div', {"class": "nav__notification"})
+        if tmp2 is not None:
+            message = int(tmp2.text)
+        if self.notif.notif["won"] < won:
+            self.onNewWon()
+        self.notif.setWon(won)
+        if self.notif.notif["message"] < message:
+            self.onNewMessage()
+        self.notif.setMessage(message)
+        if self.notif.notif["created"] < created:
+            self.onNewCreated()
+        self.notif.setCreated(created)
+
+    def onNewWon(self):
+        logger.info('You won a gift congratulation')
+        send_mail("Steamgifts: You win!!!!!!", 'You won a gift congratulation')
+
+    def onNewCreated(self):
+        logger.info('Someone won your gift')
+        send_mail("Steamgifts: Your gift has been won",
+                  'Someone won your gift')
+
+    def onNewMessage(self):
+        logger.info('You have new message(s)')
+        send_mail("Steamgifts: new message(s)",
+                  'You have new message(s)')

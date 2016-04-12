@@ -25,9 +25,12 @@ def main():
     setup()
     try:
         sg = SgRequests()
-        if '-sync' in sys.argv:
+        if '--sync' in sys.argv:
             sg.sync()
         sg.run()
+        if '--notif' in sys.argv:
+            sg.sync()
+            sg.checkNotif()
     except InvalidCookieException:
         handleCookieException()
 
